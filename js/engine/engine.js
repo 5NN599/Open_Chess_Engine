@@ -34,8 +34,18 @@
       this.setPosition(OCE.C.START_FEN, []);
     }
 
-    newGame() {
-      this.tt.clear();
+    /**
+     * Join a multi-threaded search: use a transposition table living in shared memory.
+     * ctrl is an Int32Array on a SharedArrayBuffer: [0] stop flag, [2 + threadId] node counters.
+     */
+    attachShared(ttBuffer, ctrlBuffer, threadId, threads) {
+      this.tt = new OCE.TranspositionTable(0, ttBuffer);
+      this.search.tt = this.tt;
+      this.shared = { ctrl: new Int32Array(ctrlBuffer), threadId, threads };
+    }
+
+    newGame(clearTable) {
+      if (clearTable !== false) this.tt.clear();
       this.search.clearHistory();
     }
 
@@ -43,7 +53,7 @@
       const v = Number(value);
       if (name === 'Hash') {
         this.options.Hash = Math.max(1, Math.min(1024, v | 0));
-        this.tt.resize(this.options.Hash);
+        if (!this.shared) this.tt.resize(this.options.Hash); // a shared table is (re)allocated by the host
       } else if (name === 'MultiPV') {
         this.options.MultiPV = Math.max(1, Math.min(10, v | 0));
       } else if (name === 'Skill') {
@@ -71,7 +81,12 @@
         limits.depth = Math.min(limits.depth || 99, SKILL_DEPTH[skill]);
         multiPV = Math.max(multiPV, 4); // extra lines let weaker levels pick a non-best move
       }
-      this.search.begin(limits, onInfo, { multiPV, emitLines: this.options.MultiPV });
+      const opts = { multiPV, emitLines: this.options.MultiPV };
+      if (this.shared) {
+        Object.assign(opts, { ctrl: this.shared.ctrl, threadId: this.shared.threadId, threads: this.shared.threads, gen: limits.gen || 0, age: limits.age || 0, helper: !!limits.helper });
+        if (limits.helper) { opts.multiPV = 1; opts.emitLines = 0; }
+      }
+      this.search.begin(limits, limits.helper ? null : onInfo, opts);
     }
 
     /** One iterative-deepening step; returns true while more steps remain. */
@@ -99,6 +114,7 @@
     go(limits, onInfo) {
       this.begin(limits, onInfo);
       while (this.step());
+      if (this.shared && this.shared.ctrl && limits.gen) Atomics.store(this.shared.ctrl, 0, limits.gen); // tell the helpers to stop
       return this.result();
     }
   }

@@ -33,6 +33,14 @@
     for (let m = 1; m < 64; m++) LMR[d * 64 + m] = Math.floor(0.75 + (Math.log(d) * Math.log(m)) / 2.25); // TUNE
   }
 
+  // Lazy-SMP depth skipping (helper thread k skips depth d when this is true), spreads the helpers over different depths.
+  const SKIP_SIZE = [1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4];
+  const SKIP_PHASE = [0, 1, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7];
+  function skipDepth(threadId, depth) {
+    const k = (threadId - 1) % 20;
+    return Math.floor((depth + SKIP_PHASE[k]) / SKIP_SIZE[k]) % 2 === 1;
+  }
+
   class Search {
     /**
      * @param {Board} board
@@ -106,7 +114,9 @@
         }
       }
 
-      this.tt.newSearch();
+      if (opts.age) this.tt.age = opts.age; else this.tt.newSearch();
+      this.ctrl = opts.ctrl || null; this.gen = opts.gen || 0; this.threadId = opts.threadId || 0; this.threads = opts.threads || 1;
+      this.helper = !!opts.helper;
       for (let i = 0; i < this.history.length; i++) this.history[i] >>= 1; // age history
       for (let i = 0; i < this.cont1.length; i++) { this.cont1[i] >>= 1; this.cont2[i] >>= 1; }
       this.excl.fill(0);
@@ -130,6 +140,10 @@
     step() {
       if (this.done) return false;
       const depth = this.depthDone + 1;
+      if (this.helper && depth > 1 && skipDepth(this.threadId, depth)) { // helpers search different depths than the main thread
+        this.depthDone = depth;
+        return depth < this.maxDepth;
+      }
       this.selDepth = 0;
       const newLines = [];
       const excluded = [];
@@ -195,6 +209,11 @@
     emit() {
       if (!this.onInfo) return;
       const t = now() - this.startTime;
+      let nodes = this.nodes;
+      if (this.ctrl) { // add the helper threads' counters
+        nodes = 0;
+        for (let k = 0; k < this.threads; k++) nodes += k === this.threadId ? this.nodes : Atomics.load(this.ctrl, 2 + k);
+      }
       for (let i = 0; i < this.emitLines && i < this.lines.length; i++) {
         const l = this.lines[i];
         let score;
@@ -203,7 +222,7 @@
         else score = { cp: l.score };
         this.onInfo({
           depth: this.depthDone || 1, seldepth: this.selDepth, multipv: i + 1, score,
-          nodes: this.nodes, time: Math.round(t), nps: t > 0 ? Math.round((this.nodes * 1000) / t) : 0,
+          nodes, time: Math.round(t), nps: t > 0 ? Math.round((nodes * 1000) / t) : 0, threads: this.threads,
           hashfull: this.tt.hashfull(), pv: l.pv.map((m) => this.board.moveToUci(m)),
         });
       }
@@ -218,9 +237,8 @@
         const key = board.hashLo + ':' + board.hashHi;
         if (seen.has(key)) break;
         seen.add(key);
-        const i = board.hashLo & this.tt.mask;
-        if (this.tt.keys[i] !== board.hashHi || this.tt.flags[i] === 0) break;
-        const m = this.tt.moves[i];
+        if (!this.tt.probe(board.hashLo, board.hashHi)) break;
+        const m = this.tt.hMove;
         if (!m || !board.legalMoves().includes(m)) break;
         board.makeMove(m); out.push(m); made.push(m);
       }
@@ -232,8 +250,10 @@
 
     // ---------------------------------------------------------------- limits
     checkLimits() {
+      if (this.ctrl) Atomics.store(this.ctrl, 2 + this.threadId, this.nodes); // node count for the nps display
       if (this.depthDone < 1) return; // always finish depth 1 so there is a move
-      if (this.stopRequested) this.stopped = true;
+      if (this.ctrl && Atomics.load(this.ctrl, 0) === this.gen) this.stopped = true; // stop flag set by the main thread / host
+      else if (this.stopRequested) this.stopped = true;
       else if (this.hardTime && now() - this.startTime >= this.hardTime) this.stopped = true;
       else if (this.maxNodes && this.nodes >= this.maxNodes) this.stopped = true;
     }
@@ -321,11 +341,10 @@
 
       // ---- transposition table probe
       const tt = this.tt, lo = board.hashLo, hi = board.hashHi;
-      const slot = lo & tt.mask;
       let ttMove = 0, ttScore = 0, ttFlag = 0, ttDepth = -1;
-      if (tt.keys[slot] === hi && tt.flags[slot] !== 0) {
-        ttMove = tt.moves[slot]; ttDepth = tt.depths[slot]; ttFlag = tt.flags[slot];
-        ttScore = TranspositionTable.scoreFromTT(tt.scores[slot], ply);
+      if (tt.probe(lo, hi)) {
+        ttMove = tt.hMove; ttDepth = tt.hDepth; ttFlag = tt.hFlag;
+        ttScore = TranspositionTable.scoreFromTT(tt.hScore, ply);
         if (!pvNode && ply > 0 && ttDepth >= depth && !excluded) {
           if (ttFlag === TT.EXACT) return ttScore;
           if (ttFlag === TT.LOWER && ttScore >= beta) return ttScore;
@@ -508,14 +527,15 @@
       if (ply >= MAX_PLY - 2) return this.evaluate(board);
 
       const inCheck = board.inCheck();
-      const tt = this.tt, lo = board.hashLo, hi = board.hashHi, slot = lo & tt.mask;
+      const tt = this.tt, lo = board.hashLo, hi = board.hashHi;
       const alphaOrig = alpha;
-      let ttMove = 0, ttHit = false;
-      if (tt.keys[slot] === hi && tt.flags[slot] !== 0) {
+      let ttMove = 0, ttHit = false, ttDeep = false;
+      if (tt.probe(lo, hi)) {
         ttHit = true;
-        ttMove = tt.moves[slot];
-        const f = tt.flags[slot];
-        const sc = TranspositionTable.scoreFromTT(tt.scores[slot], ply);
+        ttMove = tt.hMove;
+        ttDeep = tt.hDepth > 0;
+        const f = tt.hFlag;
+        const sc = TranspositionTable.scoreFromTT(tt.hScore, ply);
         if (beta - alpha === 1) {
           if (f === TT.EXACT || (f === TT.LOWER && sc >= beta) || (f === TT.UPPER && sc <= alpha)) return sc;
         }
@@ -570,7 +590,7 @@
 
       if (inCheck && legal === 0) return -MATE + ply;
       // Store (depth 0) unless a deeper entry for this position exists.
-      if (!(ttHit && tt.depths[slot] > 0)) {
+      if (!(ttHit && ttDeep)) {
         const flag = best >= beta ? TT.LOWER : best > alphaOrig ? TT.EXACT : TT.UPPER;
         tt.store(lo, hi, 0, best, flag, 0, ply);
       }

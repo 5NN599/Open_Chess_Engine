@@ -240,7 +240,8 @@
     S.lines[info.multipv - 1] = info;
     if (info.multipv === 1) {
       const kn = (info.nodes / 1000) | 0;
-      setStats('stats', {
+      setStats(info.threads > 1 ? 'statsMT' : 'stats', {
+        th: info.threads,
         d: info.depth, sd: info.seldepth, nodes: kn >= 1000 ? (kn / 1000).toFixed(1) + 'M' : kn + 'k',
         nps: (info.nps / 1000) | 0, hash: (info.hashfull / 10).toFixed(0),
       });
@@ -425,6 +426,7 @@
   $('opt-skill').onchange = () => { client.setOption('Skill', +$('opt-skill').value); };
   $('opt-analysis').onchange = restartSearchOnly;
   $('opt-multipv').onchange = () => { client.setOption('MultiPV', +$('opt-multipv').value); restartSearchOnly(); };
+  $('opt-threads').onchange = () => { client.setThreads(+$('opt-threads').value); updateThreadHint(); restartSearchOnly(); };
   $('opt-hash').onchange = () => { client.setOption('Hash', +$('opt-hash').value); restartSearchOnly(); };
 
 
@@ -440,6 +442,7 @@
   /** Leave review mode (the board keeps its current position). */
   function exitReview() {
     R.token++;
+    if (R.pool) { R.pool.terminate(); R.pool = null; }
     if (R.running) { R.running = false; restoreReviewOptions(); }
     R.game = null; R.result = null;
     ['review-progress', 'review-graph', 'review-nav', 'btn-review-cancel'].forEach((id) => $(id).classList.add('hidden'));
@@ -524,15 +527,37 @@
     const positions = OCE.Review.preparePositions(game);
     const raw = [];
     const limits = { movetime: +$('review-time').value };
-    for (let i = 0; i < positions.length; i++) {
-      goToPly(i);
-      if (positions[i].terminal) raw.push(null);
-      else {
-        const r = await searchPosition(positions[i].fen, limits);
-        if (token !== R.token) return; // cancelled
-        raw.push({ score: r.last ? r.last.score : { cp: 0 }, best: r.best, pv: r.last ? r.last.pv : [] });
+    const toRaw = (r) => ({ score: r.last ? r.last.score : { cp: 0 }, best: r.best, pv: r.last ? r.last.pv : [] });
+    const todo = positions.filter((p) => !p.terminal).length;
+    const cores = Math.max(1, Math.min(todo, navigator.hardwareConcurrency || 2));
+    const pool = cores > 1 ? OCE.AnalysisPool.create(cores, 16) : null;
+    if (pool) {
+      // Every core analyses a different position at the same time.
+      R.pool = pool;
+      setStats('reviewingN', { n: cores });
+      let done = 0;
+      try {
+        const jobs = positions.map((p, i) => (p.terminal ? Promise.resolve(null)
+          : pool.analyze(p.fen, limits).then((r) => { raw[i] = toRaw(r); setProgress(++done / todo); })));
+        await Promise.all(jobs);
+      } catch (e) {
+        return; // cancelled (pool terminated)
+      } finally {
+        pool.terminate(); if (R.pool === pool) R.pool = null;
       }
-      setProgress((i + 1) / positions.length);
+      if (token !== R.token) return;
+      positions.forEach((p, i) => { if (p.terminal) raw[i] = null; });
+    } else {
+      for (let i = 0; i < positions.length; i++) {
+        goToPly(i);
+        if (positions[i].terminal) raw.push(null);
+        else {
+          const r = await searchPosition(positions[i].fen, limits);
+          if (token !== R.token) return; // cancelled
+          raw.push(toRaw(r));
+        }
+        setProgress((i + 1) / positions.length);
+      }
     }
     R.running = false;
     restoreReviewOptions();
@@ -630,6 +655,7 @@
   };
   $('btn-review-cancel').onclick = () => {
     R.token++; R.running = false;
+    if (R.pool) { R.pool.terminate(); R.pool = null; }
     client.cancel(); restoreReviewOptions();
     $('review-progress').classList.add('hidden');
     $('btn-review-cancel').classList.add('hidden');
@@ -672,8 +698,15 @@
   };
 
   // ------------------------------------------------------------------ start
+  /** Explain why live analysis uses one thread when the page is not cross-origin isolated. */
+  function updateThreadHint() {
+    const canShare = OCE.EngineClient.canShare();
+    $('thread-hint').classList.toggle('hidden', canShare);
+    $('opt-threads').disabled = !canShare;
+  }
   OCE.I18N.apply();
   setStats('idle');
+  updateThreadHint();
   client.setOption('Hash', +$('opt-hash').value);
   client.setOption('MultiPV', +$('opt-multipv').value);
   client.setOption('Skill', +$('opt-skill').value);

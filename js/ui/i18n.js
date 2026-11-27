@@ -35,6 +35,10 @@
       analysis: 'Analysis', continuous: 'Continuous analysis when it is my turn',
       multipv: 'Lines (MultiPV)', hash: 'Hash memory',
       idle: 'engine idle',
+      threads: 'CPU threads', threadsAuto: 'Auto (all cores)',
+      threadHint: 'Live analysis is single-threaded here. Open the page over http(s) (e.g. a local server or GitHub Pages) to use all CPU cores; game review already uses all cores.',
+      reviewingN: 'reviewing game on {n} cores...',
+      statsMT: 'depth {d}/{sd} \u00b7 {nodes} nodes \u00b7 {nps}k n/s \u00b7 {th} threads \u00b7 hash {hash}%',
       promoTitle: 'Choose promotion piece',
       // dynamic
       white: 'White', black: 'Black',
@@ -80,6 +84,10 @@
       analysis: '분석', continuous: '내 차례에 계속 분석',
       multipv: '변화 수 (MultiPV)', hash: '해시 메모리',
       idle: '엔진 대기 중',
+      threads: 'CPU 스레드', threadsAuto: '자동 (모든 코어)',
+      threadHint: '이 환경에서는 실시간 분석이 1스레드로 동작합니다. 페이지를 http(s)로 열면(로컬 서버, GitHub Pages 등) 모든 CPU 코어를 쓰고, 대국 분석은 이미 모든 코어를 사용합니다.',
+      reviewingN: '{n}개 코어로 대국 분석 중...',
+      statsMT: '깊이 {d}/{sd} \u00b7 노드 {nodes} \u00b7 {nps}k n/s \u00b7 {th}스레드 \u00b7 해시 {hash}%',
       promoTitle: '승급할 기물 선택',
       white: '백', black: '흑',
       whiteToMove: '백 차례', blackToMove: '흑 차례', check: ' (체크)',
@@ -109,8 +117,7 @@
   let lang = 'en';
   try {
     const saved = localStorage.getItem('oce-lang');
-    if (saved && STRINGS[saved]) lang = saved;
-    else if ((navigator.language || '').toLowerCase().startsWith('ko')) lang = 'ko';
+    if (saved && STRINGS[saved]) lang = saved; // English unless the user picked another language before
   } catch (e) { /* storage may be unavailable */ }
 
   function t(key, params) {
