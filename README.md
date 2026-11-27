@@ -47,6 +47,7 @@ console.log(engine.go({ movetime: 1000 }, (info) => console.log(info.depth, info
 ## Using all CPU cores
 
 * **Game review** analyses different positions on different cores at the same time (`OCE.AnalysisPool` in `js/ui/engine-client.js`), so a review is roughly `cores` times faster. It works wherever Web Workers work.
+* Live analysis stops at the chosen depth (default 20, "Analysis depth" in the Analysis card) so the evaluation bar settles; choose "Unlimited" for endless analysis.
 * **Live analysis / engine moves** use Lazy SMP: several workers search the same position and share one transposition table in a `SharedArrayBuffer` (lock-less XOR-checked entries, see `js/engine/tt.js`). This needs a *cross-origin isolated* page. Open the page over `http(s)` (a local server such as `python3 -m http.server`, or GitHub Pages): `js/ui/coi.js` + `coi-sw.js` add the required headers with a small service worker and reload once. On `file://` live analysis stays single-threaded. Choose the thread count in the Analysis card ("CPU threads", default: all cores).
 * Measured on a 2-core test machine: about 1.3x faster time-to-depth at depth 19 with 2 threads; the gain grows with more cores and deeper searches.
 

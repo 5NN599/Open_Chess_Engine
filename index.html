@@ -110,6 +110,15 @@
       <div class="card">
         <h2 data-i18n="analysis">Analysis</h2>
         <label class="inline"><input type="checkbox" id="opt-analysis" checked> <span data-i18n="continuous">Continuous analysis when it is my turn</span></label>
+        <label><span data-i18n="analysisDepth">Analysis depth</span>
+          <select id="opt-depth">
+            <option value="16">16</option>
+            <option value="20" selected>20</option>
+            <option value="24">24</option>
+            <option value="30">30</option>
+            <option value="0" data-i18n="depthUnlimited">Unlimited (keeps running)</option>
+          </select>
+        </label>
         <label><span data-i18n="threads">CPU threads</span>
           <select id="opt-threads">
             <option value="0" data-i18n="threadsAuto">Auto (all cores)</option>

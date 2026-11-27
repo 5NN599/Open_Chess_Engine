@@ -212,8 +212,29 @@
       pct = 50 + 50 * (2 / (1 + Math.exp(-score.cp / 400)) - 1);
       text = (score.cp / 100).toFixed(1);
     }
+    S.barPct = pct; S.barMate = score.mate !== undefined;
     $('evalfill').style.height = pct + '%';
     $('evaltext').textContent = text;
+  }
+
+  /**
+   * The bar should stay calm: shallow iterations (depth 1-9) are noise, and tiny score wobbles between depths
+   * should not move it. So the engine only updates the bar from depth 10 on, and only when the winning chance
+   * changes by at least 1.5 percentage points (or a forced mate appears / disappears).
+   */
+  const BAR_MIN_DEPTH = 10, BAR_MIN_STEP = 1.5;
+  function barPercent(score) {
+    if (score.mate !== undefined) return score.mate > 0 ? 100 : 0;
+    return 50 + 50 * (2 / (1 + Math.exp(-score.cp / 400)) - 1);
+  }
+  function updateEvalBarFromEngine(info) {
+    const ws = whiteScore(info.score, S.searchSide);
+    const pct = barPercent(ws);
+    const first = S.barPct === undefined || S.barPct === null;
+    const mateChange = (ws.mate !== undefined) !== S.barMate;
+    if (info.depth < BAR_MIN_DEPTH && !first) return;           // keep showing the previous value
+    if (!first && !mateChange && Math.abs(pct - S.barPct) < BAR_MIN_STEP) return;
+    setEvalBar(ws);
   }
 
   function renderLines() {
@@ -245,7 +266,7 @@
         d: info.depth, sd: info.seldepth, nodes: kn >= 1000 ? (kn / 1000).toFixed(1) + 'M' : kn + 'k',
         nps: (info.nps / 1000) | 0, hash: (info.hashfull / 10).toFixed(0),
       });
-      setEvalBar(whiteScore(info.score, S.searchSide));
+      updateEvalBarFromEngine(info);
     }
     renderLines();
   }
@@ -286,7 +307,11 @@
     } else {
       setStatus();
       if ($('opt-analysis').checked) {
-        startSearch({ infinite: true }, () => {});
+        // Analyse up to the chosen depth, then stop (the bar and lines stay put) instead of running forever.
+        const depth = +$('opt-depth').value;
+        startSearch(depth ? { depth } : { infinite: true }, () => {
+          setStats('analysisDone', { d: depth || (S.lines[0] ? S.lines[0].depth : 0) });
+        });
       } else {
         setStats('analysisOff');
         $('lines').innerHTML = '';
@@ -323,7 +348,7 @@
     const f = fen || C.START_FEN;
     board.setFen(f);
     S.startFen = board.getFen();
-    S.hist = []; S.lastMove = 0; S.over = null;
+    S.hist = []; S.lastMove = 0; S.over = null; S.barPct = null;
     S.flipped = mode() === 'black';
     buildBoard();
     afterChange();
@@ -426,6 +451,7 @@
   $('opt-skill').onchange = () => { client.setOption('Skill', +$('opt-skill').value); };
   $('opt-analysis').onchange = restartSearchOnly;
   $('opt-multipv').onchange = () => { client.setOption('MultiPV', +$('opt-multipv').value); restartSearchOnly(); };
+  $('opt-depth').onchange = restartSearchOnly;
   $('opt-threads').onchange = () => { client.setThreads(+$('opt-threads').value); updateThreadHint(); restartSearchOnly(); };
   $('opt-hash').onchange = () => { client.setOption('Hash', +$('opt-hash').value); restartSearchOnly(); };
 
