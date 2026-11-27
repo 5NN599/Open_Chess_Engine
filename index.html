@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open Chess Engine</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Open Chess Engine</h1>
+    <span class="tag" data-i18n="tag">runs 100% in your browser &middot; no external engine</span>
+    <label class="lang"><span data-i18n="lang">Language</span>
+      <select id="lang"><option value="en">English</option><option value="ko">한국어</option></select>
+    </label>
+  </header>
+
+  <main>
+    <section class="board-area">
+      <div class="board-row">
+        <div id="evalbar" data-i18n-title="evalbarTitle" title="Evaluation (White advantage on top when White is at the bottom)">
+          <div id="evalfill"></div>
+          <span id="evaltext">0.0</span>
+        </div>
+        <div id="board" aria-label="Chess board"></div>
+      </div>
+      <div id="status">White to move</div>
+      <div class="buttons">
+        <button id="btn-new" data-i18n="newGame">New game</button>
+        <button id="btn-undo" data-i18n="undo">Undo</button>
+        <button id="btn-flip" data-i18n="flip">Flip board</button>
+        <button id="btn-engine-move" data-i18n="engineMove" data-i18n-title="engineMoveTitle" title="Let the engine play the side to move">Engine move</button>
+      </div>
+    </section>
+
+    <section class="side-panel">
+      <div class="card">
+        <h2 data-i18n="game">Game</h2>
+        <label><span data-i18n="iPlay">I play</span>
+          <select id="opt-mode">
+            <option value="white" data-i18n="modeWhite">White (engine plays Black)</option>
+            <option value="black" data-i18n="modeBlack">Black (engine plays White)</option>
+            <option value="free" data-i18n="modeFree">Both sides (analysis board)</option>
+          </select>
+        </label>
+        <label><span data-i18n="strength">Engine strength</span>
+          <select id="opt-skill">
+            <option value="20" data-i18n="skill20">Maximum</option>
+            <option value="17" data-i18n="skill17">Master</option>
+            <option value="14" data-i18n="skill14">Strong club</option>
+            <option value="11" data-i18n="skill11">Club</option>
+            <option value="8" data-i18n="skill8">Casual</option>
+            <option value="5" data-i18n="skill5">Beginner</option>
+            <option value="2" data-i18n="skill2">Very easy</option>
+          </select>
+        </label>
+        <label><span data-i18n="thinkTime">Think time</span>
+          <select id="opt-time">
+            <option value="300" data-i18n="t03">0.3 s</option>
+            <option value="1000" selected data-i18n="t1">1 s</option>
+            <option value="3000" data-i18n="t3">3 s</option>
+            <option value="10000" data-i18n="t10">10 s</option>
+            <option value="30000" data-i18n="t30">30 s</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="card" id="review-card">
+        <h2 data-i18n="review">Game review</h2>
+        <textarea id="pgn-input" spellcheck="false" data-i18n-ph="pgnPlaceholder" placeholder="Paste a PGN, a list of moves (1. e4 e5 2. Nf3 ...) or a FEN here"></textarea>
+        <div id="review-info" class="muted"></div>
+        <select id="review-game" class="hidden" aria-label="Game in PGN"></select>
+        <label><span data-i18n="timePerMove">Time per move</span>
+          <select id="review-time">
+            <option value="300" data-i18n="r03">0.3 s (fast)</option>
+            <option value="700" selected data-i18n="r07">0.7 s</option>
+            <option value="2000" data-i18n="r2">2 s</option>
+            <option value="5000" data-i18n="r5">5 s (deep)</option>
+          </select>
+        </label>
+        <div class="buttons">
+          <button id="btn-review" data-i18n="analyzeGame">Analyze game</button>
+          <button id="btn-review-current" data-i18n="analyzeCurrent">Analyze current game</button>
+          <button id="btn-review-cancel" class="hidden" data-i18n="cancel">Cancel</button>
+        </div>
+        <div id="review-progress" class="hidden"><div id="review-bar"></div><span id="review-pct"></span></div>
+        <label class="inline"><input type="checkbox" id="opt-arrow" checked> <span data-i18n="showBest">Show the better move on the board</span></label>
+        <div id="review-summary"></div>
+        <div id="review-graph" class="hidden" data-i18n-title="graphTitle" title="Click to jump to a move"></div>
+        <div id="review-comment"></div>
+        <div id="review-nav" class="buttons hidden">
+          <button id="rv-first" data-i18n-title="navFirst" title="Start (Home)">&#x23EE;</button>
+          <button id="rv-prev" data-i18n-title="navPrev" title="Previous (Left arrow)">&#x25C0;</button>
+          <button id="rv-next" data-i18n-title="navNext" title="Next (Right arrow)">&#x25B6;</button>
+          <button id="rv-last" data-i18n-title="navLast" title="End (End)">&#x23ED;</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="moves">Moves</h2>
+        <div id="moves"></div>
+        <div class="fen-row">
+          <input id="fen" spellcheck="false" aria-label="FEN">
+          <button id="btn-load-fen" data-i18n="loadFen">Load FEN</button>
+          <button id="btn-copy-pgn" data-i18n="copyPgn">Copy PGN</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="analysis">Analysis</h2>
+        <label class="inline"><input type="checkbox" id="opt-analysis" checked> <span data-i18n="continuous">Continuous analysis when it is my turn</span></label>
+        <label><span data-i18n="multipv">Lines (MultiPV)</span>
+          <select id="opt-multipv">
+            <option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option>
+          </select>
+        </label>
+        <label><span data-i18n="hash">Hash memory</span>
+          <select id="opt-hash">
+            <option value="16">16 MB</option>
+            <option value="64" selected>64 MB</option>
+            <option value="128">128 MB</option>
+            <option value="256">256 MB</option>
+          </select>
+        </label>
+        <div id="engine-stats">engine idle</div>
+        <div id="lines"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="promo" class="hidden" role="dialog" aria-label="Choose promotion piece"></div>
+
+  <!-- Engine: classic scripts so the project also works when opened from disk. -->
+  <script src="js/engine/board.js"></script>
+  <script src="js/engine/tt.js"></script>
+  <script src="js/engine/eval-tuned.js"></script>
+  <script src="js/engine/eval.js"></script>
+  <script src="js/engine/search.js"></script>
+  <script src="js/engine/engine.js"></script>
+  <script src="js/engine/pgn.js"></script>
+  <script src="js/engine/review.js"></script>
+  <!-- UI -->
+  <script src="js/ui/i18n.js"></script>
+  <script src="js/ui/engine-client.js"></script>
+  <script src="js/ui/app.js"></script>
+</body>
+</html>
