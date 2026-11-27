@@ -115,6 +115,58 @@
     return { evals, plies, accuracy: { white: accuracy[0], black: accuracy[1] }, counts: { white: counts[0], black: counts[1] } };
   }
 
+
+  // ---- Follow-up pass ("look at the moves that come next") -------------------
+  // A single search of a position can miss a move whose point only shows a few
+  // moves later (quiet moves, sacrifices). For every move that was not the engine's
+  // choice we therefore also follow the engine's own line a few plies and search
+  // the position at the end of it. That search is effectively deeper, and its
+  // score replaces the shallow one when it is available.
+  const FOLLOW_PLIES = 4;
+  const FOLLOW_MIN_DROP = 1; // win-% lost by the move before it is worth a second look
+
+  /** Play up to `maxPlies` of `pv` from `fen`; returns { fen, k } or null if nothing useful. */
+  function tailOf(fen, pv, maxPlies) {
+    if (!pv || !pv.length) return null;
+    const b = new OCE.Board();
+    b.setFen(fen);
+    let k = 0;
+    for (const uci of pv) {
+      if (k >= maxPlies) break;
+      const m = b.parseUci(uci);
+      if (!m) break;
+      b.makeMove(m);
+      k++;
+      if (!b.legalMoves().length || b.insufficientMaterial()) { k--; b.unmakeMove(); break; }
+    }
+    return k ? { fen: b.getFen(), k } : null;
+  }
+
+  /** Which positions deserve a follow-up search: the ones around every dubious move. */
+  function followUpPlan(game, positions, raw) {
+    const ev = evaluate(game, positions, raw);
+    const want = new Set();
+    ev.plies.forEach((p, i) => {
+      if (p.isBest || p.drop < FOLLOW_MIN_DROP) return;
+      want.add(i);
+      if (i + 1 < positions.length) want.add(i + 1);
+    });
+    const jobs = [];
+    for (const i of want) {
+      if (positions[i].terminal || !raw[i]) continue;
+      const t = tailOf(positions[i].fen, raw[i].pv, FOLLOW_PLIES);
+      if (t) jobs.push({ index: i, fen: t.fen, k: t.k });
+    }
+    return jobs;
+  }
+
+  /** Store the follow-up result: tail score seen from the root side to move. */
+  function applyFollowUp(raw, job, score) {
+    if (!score) return;
+    const cp = scoreToCp(score);
+    raw[job.index] = { score: { cp: job.k % 2 === 0 ? cp : -cp }, best: raw[job.index].best, pv: raw[job.index].pv };
+  }
+
   /** Blocking analysis with a synchronous engine (Node tools, tests, workers). */
   function analyzeSync(engine, game, opts) {
     opts = opts || {};
@@ -129,8 +181,16 @@
       raw.push({ score: last.score, best, pv: last.pv });
       if (opts.onProgress) opts.onProgress(i + 1, positions.length);
     });
+    if (opts.followUp !== false) {
+      for (const job of followUpPlan(game, positions, raw)) {
+        engine.setPosition(job.fen, []);
+        let last = null;
+        engine.go(limits, (info) => { if (info.multipv === 1) last = info; });
+        if (last) applyFollowUp(raw, job, last.score);
+      }
+    }
     return evaluate(game, positions, raw);
   }
 
-  OCE.Review = { preparePositions, evaluate, analyzeSync, scoreToCp, winPercent, moveAccuracy, classify, THRESHOLDS };
+  OCE.Review = { preparePositions, followUpPlan, applyFollowUp, tailOf, evaluate, analyzeSync, scoreToCp, winPercent, moveAccuracy, classify, THRESHOLDS };
 })();

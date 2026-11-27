@@ -1,7 +1,9 @@
 # Open Chess Engine
 
-A chess engine and analysis board that runs **entirely in your browser**. No server, no external engine
-(no Stockfish, no WASM blobs, no network calls) - every line of the engine is plain, readable JavaScript in `js/engine/`.
+A free, open-source chess engine, analysis board and game reviewer written in plain JavaScript.
+Source: https://github.com/5NN599/Open_Chess_Engine
+
+The engine is readable code in `js/engine/` and has no dependency on any other engine.
 
 ## Run it
 
@@ -20,7 +22,7 @@ Opening `index.html` directly from disk also works; the engine then runs on the 
 * Live analysis with MultiPV lines, depth, nodes/s and an evaluation bar.
 * **Game review**: paste a PGN (or a plain move list, or a FEN) -> every move is analysed and classified
   (best / excellent / good / inaccuracy / mistake / blunder), with accuracy for both sides, an evaluation graph,
-  the best alternative for each mistake, and arrow-key navigation. "Analyze current game" reviews the game you just played.
+  the best alternative for each mistake, and arrow-key navigation. A second pass follows the engine's line a few moves past every dubious move and searches again, so moves whose point only shows later are judged on the deeper result. "Analyze current game" reviews the game you just played.
 * FEN loading, PGN export.
 
 ## The engine
@@ -70,6 +72,8 @@ The engine is purely classical: search + hand-written evaluation. Tools to impro
   piece-square values, so the exact logistic-loss gradient is cheap. `tune.py` fits additive corrections with Adam and writes
   `js/engine/eval-tuned.js` (delete that file's contents to revert). With ~1M self-play positions the PeSTO tables turned out to be
   already near-optimal (held-out loss 0.02163 -> 0.02160), so the shipped file is empty.
+
+* `tools/tactics-bench.js` - builds a set of "hidden move" positions (shallow search and long search disagree, two differently tuned configurations agree on the long-search move) and counts how many a given engine version/parameter set solves at a fixed node budget: `node tools/tactics-bench.js run --set set.jsonl --nodes 100000 --sp '{"lmrDiv":3}'`. Search constants live in `SP` at the top of `js/engine/search.js`.
 
 Search features added by measurement: quiescence hash table, 1- and 2-ply continuation history, singular extensions.
 Against the previous version: 25 wins / 14 draws / 21 losses in 60 games at 200 ms per move (about +20 Elo, error bar +-60).

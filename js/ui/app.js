@@ -19,6 +19,7 @@
   const board = new OCE.Board();          // the game being played
   const scratch = new OCE.Board();        // used to convert engine lines into SAN
   const client = new OCE.EngineClient();
+  const api = (OCE.app = { hooks: {} }); // small surface for extras.js (drag & drop, sound, captured pieces, ...)
 
   const S = {
     startFen: C.START_FEN,
@@ -163,6 +164,7 @@
     drawArrow(reviewed && !reviewed.isBest && reviewed.best && $('opt-arrow').checked ? reviewed.best : null);
     $('fen').value = board.getFen();
     renderMoves();
+    if (api.hooks.onRender) api.hooks.onRender();
     renderReviewState();
   }
 
@@ -340,6 +342,20 @@
       if (!expected || expected.uci !== uci) exitReview(); // the user left the analysed game
     }
     afterChange();
+    if (api.hooks.onMove) api.hooks.onMove({ san, over: S.over });
+  }
+
+  /** The player gives up. In "both sides" mode the side to move resigns. */
+  function resign() {
+    if (S.over || R.running || !S.hist.length) return;
+    const m = mode();
+    const white = m === 'white' ? true : m === 'black' ? false : board.side === C.WHITE;
+    client.cancel();
+    S.thinking = false;
+    S.over = white ? 'resignWhite' : 'resignBlack';
+    S.selected = -1; S.targets = [];
+    render(); setStatus(); setStats('gameOver');
+    if (api.hooks.onMove) api.hooks.onMove({ san: '', over: S.over });
   }
 
   function newGame(fen) {
@@ -405,8 +421,15 @@
 
   // --------------------------------------------------------------- controls
   function pgn() {
-    const res = S.over ? (S.over === 'mateWhite' ? '1-0' : S.over === 'mateBlack' ? '0-1' : '1/2-1/2') : '*';
-    let out = '[Event "Open Chess Engine game"]\n[Result "' + res + '"]\n';
+    const WINS = { mateWhite: '1-0', mateBlack: '0-1', resignWhite: '0-1', resignBlack: '1-0' };
+    const res = S.over ? (WINS[S.over] || '1/2-1/2') : '*';
+    const human = mode() === 'free' ? null : mode();
+    const d = new Date(), pad = (n) => String(n).padStart(2, '0');
+    let out = '[Event "Casual game"]\n[Site "Open Chess Engine"]\n' +
+      `[Date "${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}"]\n` +
+      `[White "${human === 'black' ? 'Open Chess Engine' : human === 'white' ? 'Player' : 'White'}"]\n` +
+      `[Black "${human === 'white' ? 'Open Chess Engine' : human === 'black' ? 'Player' : 'Black'}"]\n` +
+      '[Result "' + res + '"]\n';
     if (S.startFen !== C.START_FEN) out += `[SetUp "1"]\n[FEN "${S.startFen}"]\n`;
     out += '\n';
     let num = parseInt(S.startFen.split(/\s+/)[5], 10) || 1;
@@ -427,6 +450,7 @@
   }
 
   $('btn-new').onclick = () => newGame();
+  $('btn-resign').onclick = resign;
   $('btn-undo').onclick = undo;
   $('btn-flip').onclick = () => { S.flipped = !S.flipped; buildBoard(); render(); };
   $('btn-engine-move').onclick = () => {
@@ -585,6 +609,29 @@
         setProgress((i + 1) / positions.length);
       }
     }
+    // Second pass: follow the engine's line a few moves past every dubious move and look again.
+    try {
+      const jobs = OCE.Review.followUpPlan(game, positions, raw);
+      if (jobs.length) {
+        setStats('followUp');
+        setProgress(0);
+        let done = 0;
+        const step = (job, r) => { OCE.Review.applyFollowUp(raw, job, r && r.last ? r.last.score : null); setProgress(++done / jobs.length); };
+        if (pool) {
+          const pool2 = OCE.AnalysisPool.create(cores, 16);
+          R.pool = pool2;
+          try { await Promise.all(jobs.map((j) => pool2.analyze(j.fen, limits).then((r) => step(j, r)))); }
+          finally { pool2.terminate(); if (R.pool === pool2) R.pool = null; }
+        } else {
+          for (const j of jobs) {
+            const r = await searchPosition(j.fen, limits);
+            if (token !== R.token) return;
+            step(j, r);
+          }
+        }
+      }
+    } catch (e) { if (token !== R.token) return; }
+    if (token !== R.token) return;
     R.running = false;
     restoreReviewOptions();
     R.result = OCE.Review.evaluate(game, positions, raw);
@@ -736,5 +783,6 @@
   client.setOption('Hash', +$('opt-hash').value);
   client.setOption('MultiPV', +$('opt-multipv').value);
   client.setOption('Skill', +$('opt-skill').value);
+  Object.assign(api, { board, S, R, C, GLYPH, pgn, mode, selectSquare: onSquareClick, undo, newGame, isEngineTurn, render, buildBoard, resign });
   newGame();
 })();

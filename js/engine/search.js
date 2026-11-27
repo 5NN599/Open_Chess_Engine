@@ -27,10 +27,23 @@
 
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+  // Search tuning constants. Override for experiments with `OCE.SP = {...}` before this file is loaded.
+  const SP = Object.assign({
+    lmrBase: 0.75, lmrDiv: 2.25,   // late-move reductions
+    badCapDepth: 5,                // prune losing captures (SEE < 0) up to this depth
+    rfp: 80,                       // reverse futility margin per depth
+    futBase: 90, futMul: 100,      // futility pruning of quiet moves
+    lmpBase: 3,                    // late-move pruning move-count base
+    razor: 250,                    // razoring margin per depth
+    nullBase: 3,                   // null-move reduction base
+    singDepth: 8,                  // singular extensions from this depth (99 = off)
+    checkExt: 1,                   // extension when in check
+  }, OCE.SP || {});
+
   // Late-move-reduction table: LMR[depth][moveNumber]
   const LMR = new Int8Array(64 * 64);
   for (let d = 1; d < 64; d++) {
-    for (let m = 1; m < 64; m++) LMR[d * 64 + m] = Math.floor(0.75 + (Math.log(d) * Math.log(m)) / 2.25); // TUNE
+    for (let m = 1; m < 64; m++) LMR[d * 64 + m] = Math.floor(SP.lmrBase + (Math.log(d) * Math.log(m)) / SP.lmrDiv);
   }
 
   // Lazy-SMP depth skipping (helper thread k skips depth d when this is true), spreads the helpers over different depths.
@@ -366,15 +379,15 @@
       // ---- node-level pruning (never in PV nodes, in check, or near mate scores)
       if (!pvNode && !inCheck && ply > 0 && Math.abs(beta) < MATE_BOUND) {
         // Razoring
-        if (depth <= 2 && ev + 250 * depth <= alpha) { // TUNE
+        if (depth <= 2 && ev + SP.razor * depth <= alpha) {
           const q = this.qsearch(alpha, alpha + 1, ply);
           if (q <= alpha) return q;
         }
         // Reverse futility pruning
-        if (depth <= 8 && ev - (80 * depth - (improving ? 50 : 0)) >= beta) return ev; // TUNE
+        if (depth <= 8 && ev - (SP.rfp * depth - (improving ? 50 : 0)) >= beta) return ev;
         // Null-move pruning
         if (canNull && !excluded && depth >= 3 && ev >= beta && board.hasNonPawnMaterial(board.side)) {
-          const R = 3 + (depth >> 2) + Math.min(3, ((ev - beta) / 200) | 0); // TUNE
+          const R = SP.nullBase + (depth >> 2) + Math.min(3, ((ev - beta) / 200) | 0); // TUNE
           this.lastMove[ply + 1] = 0; this.lastPiece[ply + 1] = 0;
           board.makeNull();
           const s = -this.search(depth - 1 - R, -beta, -beta + 1, ply + 1, false);
@@ -419,7 +432,7 @@
 
         // Singular extension: if the hash move is much better than all alternatives, search it deeper.
         let ext = 0;
-        if (m === ttMove && ply > 0 && !excluded && depth >= 8 && ttDepth >= depth - 3 &&
+        if (m === ttMove && ply > 0 && !excluded && depth >= SP.singDepth && ttDepth >= depth - 3 &&
             (ttFlag === TT.LOWER || ttFlag === TT.EXACT) && Math.abs(ttScore) < MATE_BOUND) { // TUNE
           const sBeta = ttScore - 2 * depth;
           this.saveList.set(list.subarray(off, off + n), off); this.saveScore.set(scores.subarray(off, off + n), off);
@@ -440,13 +453,13 @@
         // ---- move-level pruning
         if (!pvNode && !inCheck && !givesCheck && best > -MATE_BOUND && legal > 1) {
           if (isQuiet) {
-            if (depth <= 6 && legal > ((3 + depth * depth) >> (improving ? 0 : 1))) { // late-move pruning  TUNE
+            if (depth <= 6 && legal > ((SP.lmpBase + depth * depth) >> (improving ? 0 : 1))) { // late-move pruning
               skipQuiets = true; board.unmakeMove(); continue;
             }
-            if (depth <= 6 && ev + 90 + 100 * depth <= alpha) { // futility pruning  TUNE
+            if (depth <= 6 && ev + SP.futBase + SP.futMul * depth <= alpha) { // futility pruning
               skipQuiets = true; board.unmakeMove(); continue;
             }
-          } else if (isCapture && depth <= 5 && bs < 0) { // bad captures are scored below zero
+          } else if (isCapture && depth <= SP.badCapDepth && bs < 0) { // bad captures are scored below zero
             board.unmakeMove(); continue; // clearly losing capture (SEE < 0)
           }
         }

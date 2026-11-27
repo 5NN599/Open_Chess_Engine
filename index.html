@@ -1,40 +1,131 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Open Chess Engine</title>
+  <title>Open Chess Engine - Free Open-Source Chess Engine, Analysis Board &amp; Game Review</title>
+  <meta name="description" content="Open Chess Engine is a free, open-source chess engine written in JavaScript. Play against the engine, analyze positions and review PGN games with move ratings and better-move hints.">
+  <meta name="keywords" content="chess engine, open source chess engine, chess analysis, PGN analyzer, game review, chess game review, analysis board, JavaScript chess engine, play chess online, free chess">
+  <meta name="author" content="5NN599">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#1f2227">
+  <link rel="canonical" href="https://open-chess-engine.kro.kr/">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Open Chess Engine">
+  <meta property="og:title" content="Open Chess Engine - Open-Source Chess Engine &amp; Game Review">
+  <meta property="og:description" content="Play, analyze and review chess games with a free, open-source JavaScript chess engine. MIT licensed.">
+  <meta property="og:url" content="https://open-chess-engine.kro.kr/">
+  <meta property="og:image" content="https://open-chess-engine.kro.kr/icons/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Open Chess Engine - Open-Source Chess Engine &amp; Game Review">
+  <meta name="twitter:description" content="Play, analyze and review chess games with a free, open-source JavaScript chess engine.">
+  <meta name="twitter:image" content="https://open-chess-engine.kro.kr/icons/og-image.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "name": "Open Chess Engine",
+        "url": "https://open-chess-engine.kro.kr/",
+        "description": "Free, open-source chess engine, analysis board and PGN game review written in JavaScript.",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any (modern web browser)",
+        "browserRequirements": "Requires JavaScript and Web Workers",
+        "license": "https://opensource.org/licenses/MIT",
+        "codeRepository": "https://github.com/5NN599/Open_Chess_Engine",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "5NN599", "url": "https://github.com/5NN599" },
+        "inLanguage": ["en", "ko"]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "What is Open Chess Engine?",
+            "acceptedAnswer": { "@type": "Answer", "text": "A free, open-source chess engine, analysis board and game reviewer written in plain JavaScript. You can play against it, analyze any position and review a PGN game." } },
+          { "@type": "Question", "name": "How do I review a chess game?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Paste a PGN, a list of moves or a FEN into the Game review box and press Analyze game. Every move is rated from best move to blunder, an accuracy score is shown for both sides and the better move is drawn on the board." } },
+          { "@type": "Question", "name": "How strong is the engine?",
+            "acceptedAnswer": { "@type": "Answer", "text": "It is a classical alpha-beta engine with a hand-written evaluation. Strength depends on your device and the think time you choose. It does not match the strongest engines such as Stockfish." } },
+          { "@type": "Question", "name": "Is it free, and can I change it?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. The project is released under the MIT license and the full source code is on GitHub." } }
+        ]
+      }
+    ]
+  }
+  </script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header>
-    <h1>Open Chess Engine</h1>
-    <span class="tag" data-i18n="tag">runs 100% in your browser &middot; no external engine</span>
-    <label class="lang"><span data-i18n="lang">Language</span>
-      <select id="lang"><option value="en">English</option><option value="ko">한국어</option></select>
-    </label>
+  <a class="skip" href="#play" data-i18n="skip">Skip to the board</a>
+  <header class="site-header">
+    <div class="wrap nav">
+      <a class="brand" href="#top" aria-label="Open Chess Engine">
+        <img src="favicon.svg" alt="" width="28" height="28">
+        <span>Open Chess Engine</span>
+      </a>
+      <nav aria-label="Main">
+        <a href="#play" data-i18n="navPlay">Play</a>
+        <a href="#features" data-i18n="navFeatures">Features</a>
+        <a href="#how" data-i18n="navHow">How it works</a>
+        <a href="#faq" data-i18n="navFaq">FAQ</a>
+      </nav>
+      <div class="nav-right">
+        <select id="lang" aria-label="Language"><option value="en">English</option><option value="ko">한국어</option></select>
+        <button id="btn-theme" class="icon" data-i18n-title="themeTitle" title="Light / dark theme">&#9728;</button>
+        <a class="gh-btn" href="https://github.com/5NN599/Open_Chess_Engine" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </div>
   </header>
 
-  <main>
-    <section class="board-area">
-      <div class="board-row">
-        <div id="evalbar" data-i18n-title="evalbarTitle" title="Evaluation (White advantage on top when White is at the bottom)">
-          <div id="evalfill"></div>
-          <span id="evaltext">0.0</span>
-        </div>
-        <div id="board" aria-label="Chess board"></div>
+  <section class="hero" id="top">
+    <div class="wrap">
+      <h1>Open Chess Engine</h1>
+      <p class="lead" data-i18n="lead">A free, open-source chess engine, analysis board and game reviewer written in JavaScript.</p>
+      <div class="cta">
+        <a class="btn primary" href="#play" data-i18n="ctaPlay">Play now</a>
+        <a class="btn" href="#review-card" data-i18n="ctaReview">Review a game</a>
+        <a class="btn" href="https://github.com/5NN599/Open_Chess_Engine" target="_blank" rel="noopener" data-i18n="ctaStar">Star on GitHub</a>
       </div>
-      <div id="status">White to move</div>
-      <div class="buttons">
-        <button id="btn-new" data-i18n="newGame">New game</button>
-        <button id="btn-undo" data-i18n="undo">Undo</button>
-        <button id="btn-flip" data-i18n="flip">Flip board</button>
-        <button id="btn-engine-move" data-i18n="engineMove" data-i18n-title="engineMoveTitle" title="Let the engine play the side to move">Engine move</button>
-      </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="side-panel">
+  <main id="play">
+    <div class="wrap app">
+      <section class="board-area" aria-label="Chess board">
+        <div class="player-strip" id="strip-top"><span class="pname" id="name-top"></span><span class="captured" id="cap-top"></span></div>
+        <div class="board-row">
+          <div id="evalbar" data-i18n-title="evalbarTitle" title="Evaluation bar">
+            <div id="evalfill"></div>
+            <span id="evaltext">0.0</span>
+          </div>
+          <div id="board" role="grid" aria-label="Chess board"></div>
+        </div>
+        <div class="player-strip" id="strip-bottom"><span class="pname" id="name-bottom"></span><span class="captured" id="cap-bottom"></span></div>
+        <div id="status" role="status" aria-live="polite">White to move</div>
+        <div class="buttons">
+          <button id="btn-new" class="primary" data-i18n="newGame">New game</button>
+          <button id="btn-undo" data-i18n="undo">Undo</button>
+          <button id="btn-flip" data-i18n="flip">Flip board</button>
+          <button id="btn-engine-move" data-i18n="engineMove" data-i18n-title="engineMoveTitle" title="Let the engine play the side to move">Engine move</button>
+          <button id="btn-resign" data-i18n="resign">Resign</button>
+          <button id="btn-sound" class="icon" data-i18n-title="soundTitle" title="Sound on/off" aria-pressed="true">&#128266;</button>
+        </div>
+      </section>
+
+      <section class="side-panel">
       <div class="card">
         <h2 data-i18n="game">Game</h2>
         <label><span data-i18n="iPlay">I play</span>
@@ -42,6 +133,14 @@
             <option value="white" data-i18n="modeWhite">White (engine plays Black)</option>
             <option value="black" data-i18n="modeBlack">Black (engine plays White)</option>
             <option value="free" data-i18n="modeFree">Both sides (analysis board)</option>
+          </select>
+        </label>
+        <label><span data-i18n="boardTheme">Board colors</span>
+          <select id="opt-board">
+            <option value="green" data-i18n="bGreen">Green</option>
+            <option value="brown" data-i18n="bBrown">Brown</option>
+            <option value="blue" data-i18n="bBlue">Blue</option>
+            <option value="gray" data-i18n="bGray">Gray</option>
           </select>
         </label>
         <label><span data-i18n="strength">Engine strength</span>
@@ -83,6 +182,8 @@
           <button id="btn-review" data-i18n="analyzeGame">Analyze game</button>
           <button id="btn-review-current" data-i18n="analyzeCurrent">Analyze current game</button>
           <button id="btn-review-cancel" class="hidden" data-i18n="cancel">Cancel</button>
+          <button id="btn-open-pgn" data-i18n="openPgn">Open PGN file</button>
+          <input type="file" id="file-pgn" accept=".pgn,.txt,text/plain" class="hidden">
         </div>
         <div id="review-progress" class="hidden"><div id="review-bar"></div><span id="review-pct"></span></div>
         <label class="inline"><input type="checkbox" id="opt-arrow" checked> <span data-i18n="showBest">Show the better move on the board</span></label>
@@ -104,6 +205,7 @@
           <input id="fen" spellcheck="false" aria-label="FEN">
           <button id="btn-load-fen" data-i18n="loadFen">Load FEN</button>
           <button id="btn-copy-pgn" data-i18n="copyPgn">Copy PGN</button>
+          <button id="btn-save-pgn" data-i18n="savePgn">Save PGN</button>
         </div>
       </div>
 
@@ -144,9 +246,59 @@
         <div id="lines"></div>
       </div>
     </section>
+    </div>
   </main>
 
-  <div id="promo" class="hidden" role="dialog" aria-label="Choose promotion piece"></div>
+  <section class="content" id="features">
+    <div class="wrap">
+      <h2 class="section-title" data-i18n="featuresTitle">Features</h2>
+      <div class="grid">
+        <article class="feature"><h3 data-i18n="f1t">Alpha-beta search</h3><p data-i18n="f1d">Iterative deepening with a transposition table, null-move pruning, late-move reductions, singular extensions and a quiescence search.</p></article>
+        <article class="feature"><h3 data-i18n="f2t">Game review</h3><p data-i18n="f2d">Paste a PGN, FEN or move list. Each move is rated from best move to blunder, with accuracy scores, an evaluation graph and the better move drawn on the board.</p></article>
+        <article class="feature"><h3 data-i18n="f3t">Uses every CPU core</h3><p data-i18n="f3d">Game review analyzes positions on all cores at once. Live analysis can search with several threads that share one hash table.</p></article>
+        <article class="feature"><h3 data-i18n="f4t">Seven playing levels</h3><p data-i18n="f4d">From a relaxed beginner game to full strength, with adjustable think time.</p></article>
+        <article class="feature"><h3 data-i18n="f5t">Easy to read and change</h3><p data-i18n="f5d">Plain JavaScript with no build step and no dependencies. Search constants and evaluation terms sit in single, commented files.</p></article>
+        <article class="feature"><h3 data-i18n="f6t">MIT licensed</h3><p data-i18n="f6d">Use it, fork it or embed it in your own project. Contributions are welcome on GitHub.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="content alt" id="how">
+    <div class="wrap">
+      <h2 class="section-title" data-i18n="howTitle">How it works</h2>
+      <ol class="steps">
+        <li><h3 data-i18n="s1t">Play</h3><p data-i18n="s1d">Pick a side and a strength, then move the pieces by dragging or clicking. The evaluation bar shows who is better.</p></li>
+        <li><h3 data-i18n="s2t">Analyze</h3><p data-i18n="s2d">Switch to the analysis board to see the engine's best lines for any position, up to the depth you choose.</p></li>
+        <li><h3 data-i18n="s3t">Review</h3><p data-i18n="s3d">Paste a finished game and press Analyze game. Step through it to see mistakes, blunders and what you should have played.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="content" id="faq">
+    <div class="wrap narrow">
+      <h2 class="section-title" data-i18n="faqTitle">Frequently asked questions</h2>
+      <details><summary data-i18n="q1">What is Open Chess Engine?</summary><p data-i18n="a1">A free, open-source chess engine with a built-in analysis board and game reviewer. You can play against it, analyze any position and review a PGN game.</p></details>
+      <details><summary data-i18n="q2">How do I review a game?</summary><p data-i18n="a2">Paste a PGN, a list of moves or a FEN into the Game review box and press Analyze game. You can also open a .pgn file.</p></details>
+      <details><summary data-i18n="q3">How strong is the engine?</summary><p data-i18n="a3">Strength depends on your device and the think time. It is a classical alpha-beta engine with a hand-written evaluation, so it does not match the strongest engines such as Stockfish.</p></details>
+      <details><summary data-i18n="q4">Can I run it myself?</summary><p data-i18n="a4">Yes. Download the repository and serve the folder with any static web server, for example python3 -m http.server. There is nothing to build.</p></details>
+      <details><summary data-i18n="q5">How do I contribute?</summary><p data-i18n="a5">Open an issue or a pull request on GitHub. Ideas for the evaluation, the search or the interface are all welcome.</p></details>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="wrap foot">
+      <div><strong>Open Chess Engine</strong><br><span class="muted" data-i18n="footMit">Released under the MIT License.</span></div>
+      <div class="links">
+        <a href="https://github.com/5NN599/Open_Chess_Engine" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/5NN599/Open_Chess_Engine/issues" target="_blank" rel="noopener" data-i18n="footIssues">Report an issue</a>
+        <a href="https://github.com/5NN599/Open_Chess_Engine#readme" target="_blank" rel="noopener" data-i18n="footDocs">Documentation</a>
+      </div>
+    </div>
+  </footer>
+
+  <noscript><p class="wrap">Open Chess Engine needs JavaScript to run the chess board and engine.</p></noscript>
+
+<div id="promo" class="hidden" role="dialog" aria-label="Choose promotion piece"></div>
 
   <!-- Engine: classic scripts so the project also works when opened from disk. -->
   <script src="js/engine/board.js"></script>
@@ -162,5 +314,6 @@
   <script src="js/ui/i18n.js"></script>
   <script src="js/ui/engine-client.js"></script>
   <script src="js/ui/app.js"></script>
+  <script src="js/ui/extras.js"></script>
 </body>
 </html>

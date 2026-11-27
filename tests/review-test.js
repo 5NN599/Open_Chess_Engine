@@ -60,5 +60,16 @@ const mate = OCE.parsePgn('1. f3 e5 2. g4 Qh4#').games[0];
 const mateResult = OCE.Review.analyzeSync(engine, mate, { movetime: 100 });
 check(mateResult.evals[4] <= -9000, 'checkmate position scored as lost for White');
 
+// ---- follow-up pass: the line is followed and the tail score is mapped back to the root side
+{
+  const game = OCE.parsePgn('1. e4 e5 2. Nf3 Nc6').games[0];
+  const pos = OCE.Review.preparePositions(game);
+  const t = OCE.Review.tailOf(pos[0].fen, ['e2e4', 'e7e5', 'g1f3'], 4);
+  check(t && t.k === 3, 'tailOf follows the principal variation');
+  const raw = [{ score: { cp: 10 }, best: 'e2e4', pv: ['e2e4'] }];
+  OCE.Review.applyFollowUp(raw, { index: 0, k: 3 }, { cp: 50 });
+  check(raw[0].score.cp === -50, 'odd-length tail flips the score sign');
+}
+
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');
 process.exit(failed ? 1 : 0);
